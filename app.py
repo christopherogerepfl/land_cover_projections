@@ -90,12 +90,33 @@ with scenarios_col:
             
             unique_classes = np.unique(list(land_cover_colors.keys()))
             color_list = [land_cover_colors.get(cls, (0, 0, 0, 1)) for cls in unique_classes]
-            cmap = mcolors.ListedColormap([color[:3] for color in color_list])
-            
+           # Define colormap and normalization
+            cmap = mcolors.ListedColormap([color[:3] for color in color_list])  # Remove alpha
+            norm = mcolors.BoundaryNorm(unique_classes.tolist() + [max(unique_classes) + 1], cmap.N)
+
+            # Create figure and plot raster
             fig, ax = plt.subplots(figsize=(10, 8))
-            ax.imshow(land_cover, cmap=cmap)
+            img = ax.imshow(land_cover, cmap=cmap, norm=norm, extent=[src.bounds.left, src.bounds.right, src.bounds.bottom, src.bounds.top], zorder=2)
+            ctx.add_basemap(ax, crs='epsg:2056', attribution=1, zorder=1)
+            #scale = ctx.add_scale(ax, at_location=(0.5, 0.05), length=10000, units='m')
+
             ax.set_title(f"{selected_scenario} - {time_period}")
+
+            #add distance scale
             ax.axis("off")
+
+            # Create a colorbar legend
+            ax_legend = fig.add_axes([0.1, 0.1, 0.8, 0.05])  # Position for legend
+            sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+            sm.set_array([])  # Dummy array for colorbar
+
+            cb = plt.colorbar(sm, cax=ax_legend, orientation='horizontal')
+            cb.set_ticks(unique_classes+0.5)
+            cb.ax.set_xticklabels([land_cover_labels.get(cls, "") for cls in unique_classes], rotation=360-60)
+
+            # Adjust legend appearance
+            cb.ax.tick_params(labelsize=8)
+            cb.ax.set_title("Land Cover Classes", fontsize=10)
             
             st.pyplot(fig)
     else:

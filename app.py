@@ -44,16 +44,16 @@ time_periods = ["2020_2045", "2045_2074", "2070_2099"]
 
 # Mapping between scenarios and raster paths
 raster_paths = {
-    "2020_2045_RCP45": "land_cover_raster/2020_2045_RCP45.tif",
-    "2020_2045_RCP85": "land_cover_raster/2020_2045_RCP85.tif",
-    "2045_2074_RCP45": "land_cover_raster/2045_2074_RCP45.tif",
-    "2045_2074_RCP85": "land_cover_raster/2045_2074_RCP85.tif",
-    "2070_2099_RCP45": "land_cover_raster/2070_2099_RCP45.tif",
-    "2070_2099_RCP85": "land_cover_raster/2070_2099_RCP85.tif"
+    "2020_2045_RCP45": "clipped_raster/2020_2045_RCP45_clipped.tif",
+    "2020_2045_RCP85": "clipped_raster/2020_2045_RCP85_clipped.tif",
+    "2045_2074_RCP45": "clipped_raster/2045_2074_RCP45_clipped.tif",
+    "2045_2074_RCP85": "clipped_raster/2045_2074_RCP85_clipped.tif",
+    "2070_2099_RCP45": "clipped_raster/2070_2099_RCP45_clipped.tif",
+    "2070_2099_RCP85": "clipped_raster/2070_2099_RCP85_clipped.tif"
 }
 
 # Load color mapping from file
-color_file_path = "data_paper1/ColourPalette.txt"
+color_file_path = "Visualization/ColourPalette.txt"
 land_cover_colors = {}
 land_cover_labels = {}
 

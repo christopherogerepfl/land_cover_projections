@@ -5,45 +5,112 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import contextily as ctx
 
-def transitions_calc(raster1, raster2, lc1, lc2):
-    """function to outline the transition between two rasters and two land cover types"""
+import numpy as np
+
+def adapt_raster(old_raster):
+    """
+    Adapt an old raster to the new classification system.
+    :param old_raster: 2D numpy array representing the old raster.
+    :return: 2D numpy array with updated class codes.
+    """
+    # Define the mapping from old class codes to new class codes
+    class_mapping = {
+        1: 1,  # Industry
+        2: 2,  # Building
+        3: 15, # Transportation
+        4: 3,  # Special urban
+        5: 4,  # Urban green
+        6: 5,  # Horticulture
+        7: 6,  # Arable
+        8: 7,  # Grassland
+        9: 8,  # Alpine grassland
+        10: 9, # Forest
+        11: 10, # Brush
+        12: 11, # Trees
+        13: 16, # Water (standing)
+        14: 16, # Water (flowing)
+        15: 12, # Unproductive vegetation
+        16: 13, # Bare land
+        17: 14  # Glacier
+    }
+    
+    # Vectorized mapping of old raster values to new raster values
+    vectorized_map = np.vectorize(lambda x: class_mapping.get(x, x))
+    new_raster = vectorized_map(old_raster)
+    
+    return new_raster
+
+# Example usage:
+# old_raster = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+# new_raster = adapt_raster(old_raster)
+# print(new_raster)
+
+def transitions_calc(raster1_path, raster2_path, lc_sources, lc_target):
+    """Function to outline the transition from multiple land cover classes to a target class"""
 
     # Read raster data
-    with rio.open(raster1) as src:
+    with rio.open(raster1_path) as src:
         raster1 = src.read(1)
-        raster1[(raster1 != lc1) & (raster1 != lc2)] = np.nan
         map_extent = [src.bounds.left, src.bounds.right, src.bounds.bottom, src.bounds.top]
-    
-    with rio.open(raster2) as src:
+
+    with rio.open(raster2_path) as src:
         raster2 = src.read(1)
-        raster2[(raster2 != lc1) & (raster2 != lc2)] = np.nan
 
-    # Calculate transition
-    transition = np.zeros_like(raster1)
-    transition[(raster1 == lc1) & (raster2 == lc2)] = 1
-    transition[(raster1 == lc2) & (raster2 == lc1)] = -1
+    # Adapt raster values if needed
+    def preprocess_raster(raster, raster_path):
+        if 'RCP' in raster_path:
+            raster[(raster > 14) & (raster < 24)] = 15
+            raster[raster >= 24] = 16
+        else:
+            raster = adapt_raster(raster)
+        return raster
 
-    return transition, map_extent
+    raster1 = preprocess_raster(raster1, raster1_path)
+    raster2 = preprocess_raster(raster2, raster2_path)
 
-def transition_viz(transition, lc1, lc2, map_extent):
-    """function to visualize the transition"""
+    # Ensure rasters have the same shape
+    min_rows = min(raster1.shape[0], raster2.shape[0])
+    min_cols = min(raster1.shape[1], raster2.shape[1])
+    raster1 = raster1[:min_rows, :min_cols]
+    raster2 = raster2[:min_rows, :min_cols]
 
-    # Plot transition
-    print(map_extent)
-    fig, ax = plt.subplots(figsize=(20, 18))
-    ax.imshow(transition, cmap='coolwarm', vmin=-1, vmax=1)
-    ax.set_title(f"Transition from {lc1} to {lc2}")
+    # Initialize transition map
+    transition = np.zeros_like(raster1, dtype=int)
+
+    # Mark transitions from any source class to the target class
+    for lc in lc_sources:
+        transition[(raster1 == lc) & (raster2 == lc_target)] = 1
+
+    crs = src.crs  # Get coordinate reference system
+
+    return transition, map_extent, crs
+
+def transition_viz(transition, lc_sources, lc_target, map_extent, crs):
+    """Function to visualize the transitions"""
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    transition = transition.astype(float)  # Convert to float first
+    transition[transition == 0] = np.nan  # Now assign NaN safely
+
+    img = ax.imshow(transition, cmap='coolwarm', extent=map_extent, zorder=2)
+    ctx.add_basemap(ax, crs=crs, attribution=False, zorder=1, alpha=0.5)
+
+    ax.set_title(f"Transition from {', '.join(lc_sources)} to {lc_target}")
     ax.axis('off')
     plt.tight_layout()
-    
+
     return fig
 
 # Define available scenarios and time periods
 scenarios = ["RCP45", "RCP85"]
-time_periods = ["2020_2045", "2045_2074", "2070_2099"]
+time_periods = ["1979_1985", "1992_1997", "2004_2009", "2013_2018", "2020_2045", "2045_2074", "2070_2099"]
 
 # Mapping between scenarios and raster paths
 raster_paths = {
+    "1979_1985": "clipped_raster/1979_1985_clipped.tif",
+    "1992_1997": "clipped_raster/1992_1997_clipped.tif",
+    "2004_2009": "clipped_raster/2004_2009_clipped.tif",
+    "2013_2018": "clipped_raster/2013_2018_clipped.tif",
     "2020_2045_RCP45": "clipped_raster/2020_2045_RCP45_clipped.tif",
     "2020_2045_RCP85": "clipped_raster/2020_2045_RCP85_clipped.tif",
     "2045_2074_RCP45": "clipped_raster/2045_2074_RCP45_clipped.tif",
@@ -76,17 +143,28 @@ scenarios_col, transition_col = st.columns(2)
 
 with scenarios_col:
     st.header("Land Cover Scenarios")
-    selected_scenario = st.radio("Select Climate Scenario:", scenarios)
     time_period = st.radio("Select Time Period:",time_periods)
-    raster_key = f"{time_period}_{selected_scenario}"
+    selected_scenario = None
+    raster_key = f"{time_period}"
+
+
+    if int(time_period.split('_')[0]) > 2018: 
+        selected_scenario = st.radio("Select Climate Scenario:", scenarios)
+        raster_key += f"_{selected_scenario}"
+
 
     if raster_key in raster_paths:
         raster_file = raster_paths[raster_key]
         with rio.open(raster_file) as src:
             land_cover = src.read(1)
-            land_cover[land_cover<0] = np.nan
-            land_cover[(land_cover>14) & (land_cover<24)] = 15
-            land_cover[land_cover>=24] = 16
+            if selected_scenario is not None:
+                land_cover[land_cover<=0] = np.nan
+                land_cover[(land_cover>14) & (land_cover<24)] = 15
+                land_cover[land_cover>=24] = 16
+            else:
+                land_cover = adapt_raster(land_cover)
+                land_cover[land_cover==0] = np.nan  
+
             
             unique_classes = np.unique(list(land_cover_colors.keys()))
             color_list = [land_cover_colors.get(cls, (0, 0, 0, 1)) for cls in unique_classes]
@@ -96,7 +174,7 @@ with scenarios_col:
 
             # Create figure and plot raster
             fig, ax = plt.subplots(figsize=(10, 8))
-            img = ax.imshow(land_cover, cmap=cmap, norm=norm, extent=[src.bounds.left, src.bounds.right, src.bounds.bottom, src.bounds.top], zorder=2)
+            img = ax.imshow(land_cover, cmap=cmap, norm=norm, extent=[src.bounds.left, src.bounds.right, src.bounds.bottom, src.bounds.top], zorder=2, alpha=0.7)
             ctx.add_basemap(ax, crs='epsg:2056', attribution=1, zorder=1)
             #scale = ctx.add_scale(ax, at_location=(0.5, 0.05), length=10000, units='m')
 
@@ -123,22 +201,37 @@ with scenarios_col:
         st.error("Raster file not found for the selected scenario and time period.")
 
 with transition_col:
-    st.header("Transition Visualization")
-    lc1 = st.selectbox("Select first land cover class:", list(land_cover_labels.values()), index=5)
-    lc2 = st.selectbox("Select second land cover class:", list(land_cover_labels.values()),index=6)
-    raster1 = st.selectbox("Select first raster:", list(raster_paths.keys()), index=0)
-    raster2 = st.selectbox("Select second raster:", list(raster_paths.keys()), index=2)
+    # Streamlit UI
+    st.header("Multi-Class Transition Visualization")
+
     
-    if raster1 == raster2 or lc1 == lc2:
-        st.error("Please select different rasters and land cover classes for comparison.")
+    # Allow multiple selections for source land cover classes
+    lc_sources = st.multiselect(
+        "Select source land cover class(es):",
+        list(land_cover_labels.values()),
+        default=[list(land_cover_labels.values())[0]]
+    )
+    
+    lc_target = st.selectbox("Select target land cover class:", list(land_cover_labels.values()))
+    
+    raster1 = st.selectbox("Select first raster:", list(raster_paths.keys()), index=0)
+    raster2 = st.selectbox("Select second raster:", list(raster_paths.keys()), index=1)
+
+    if not lc_sources or raster1 == raster2:
+        st.error("Please select at least one source class and ensure different raster selections.")
     else:
-        transition, map_extent = transitions_calc(
-            raster_paths[raster1], 
-            raster_paths[raster2], 
-            list(land_cover_labels.keys())[list(land_cover_labels.values()).index(lc1)], 
-            list(land_cover_labels.keys())[list(land_cover_labels.values()).index(lc2)]
+        # Convert selected labels to land cover class IDs
+        lc_source_ids = [list(land_cover_labels.keys())[list(land_cover_labels.values()).index(lc)] for lc in lc_sources]
+        lc_target_id = list(land_cover_labels.keys())[list(land_cover_labels.values()).index(lc_target)]
+
+        # Compute transition map
+        transition, map_extent, crs = transitions_calc(
+            raster_paths[raster1], raster_paths[raster2], lc_source_ids, lc_target_id
         )
 
-        fig = transition_viz(transition, lc1, lc2, map_extent)
+        # Generate visualization
+        fig = transition_viz(transition, lc_sources, lc_target, map_extent, crs)
         st.pyplot(fig)
-        st.write(f"Transition from {lc1} to {lc2} is shown in red, while transition from {lc2} to {lc1} is shown in blue.")
+
+        # Explanation text
+        st.write(f"Areas transitioning from **{', '.join(lc_sources)}** to **{lc_target}** are highlighted.")

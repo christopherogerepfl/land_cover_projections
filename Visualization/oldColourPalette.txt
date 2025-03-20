@@ -1,0 +1,17 @@
+1	100	25	40	255	Industry
+2	170	60	70	255	Building
+3	7	20	0	255	Transportation
+4	195	95	110	255	Special urban
+5	220	130	170	255	Urban green
+6	220	170	125	255	Horticulture
+7	130	75	45	255	Arable
+8	170	200	15	255	Grassland
+9	140	230	165	255	Alpine grassland
+10	50	135	25	255	Forest
+11	40	80	30	255	Brush
+12	65	215	85	255	Trees
+13	70	210	210	255	Water
+14	70	210	210	255	Water
+15	130	110	110	255	Unproductive vegetation
+16	180	170	150	255	Bare land
+17	190	240	240	255	Glacier

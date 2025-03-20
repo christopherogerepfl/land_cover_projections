@@ -1,0 +1,6 @@
+
+GDAL==3.10.2
+geopandas==1.0.1
+matplotlib==3.9.4
+rasterio==1.4.3
+streamlit 

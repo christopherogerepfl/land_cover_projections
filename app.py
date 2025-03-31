@@ -99,6 +99,7 @@ def transition_viz(transition, lc_sources, lc_target, map_extent, crs):
 # Define available scenarios and time periods
 rcp_scenarios = ["RCP45", "RCP85"]
 ssp_scenarios = ["SSP1", "SSP2", "SSP3", "SSP4", "SSP5"]
+rcp_ssp_scenarios = []
 
 historical_time_periods = ["1979_1985", "1992_1997", "2004_2009", "2013_2018"]
 rcp_future_time_periods = ["2020_2045", "2045_2074", "2070_2099"]
@@ -306,7 +307,7 @@ st.set_page_config(layout="wide")
 st.title("Land Cover Scenario Viewer")
 
 # Main tab selection - RCP vs SSP
-tab_rcp, tab_ssp = st.tabs(["RCP Scenarios", "SSP Scenarios"])
+tab_rcp, tab_ssp, tab_rcp_ssp = st.tabs(["RCP Scenarios", "SSP Scenarios", "RCP-SSP Scenarios"])
 
 # RCP Tab
 with tab_rcp:
@@ -353,7 +354,30 @@ with tab_ssp:
         else:
             st.error(f"Raster file {raster_paths[raster_key]} not found for the selected scenario and time period.")
     
-"""    with ssp_transition_tab:
+    """with ssp_transition_tab:
         # Create a list of all SSP raster keys
         ssp_rasters = [f"{period}_{scenario}" for period in ssp_future_time_periods for scenario in ssp_scenarios]
         show_transition_analysis("SSP", ssp_rasters)"""
+
+with tab_rcp_ssp:
+        # Create subtabs for scenario viewing and transition analysis
+    ssp_view_tab, ssp_transition_tab = st.tabs(["View Scenarios", "Transition Analysis"])
+    
+    with ssp_view_tab:
+        
+        st.header("SSP Climate Scenarios")
+        col1_rcpssp, col2_rcpssp, col3_rcpssp = st.columns(3)
+        with col1_rcpssp:
+            rcpssp_time_period = st.radio("Select Time Period:", rcpssp_future_time_periods)
+        with col2_rcpssp:
+            rcpssp_scenario_rcp = st.radio("Select RCP Scenario:", rcpssp_scenarios.keys())
+        with col3_rcpssp:
+            rcpssp_scenario_ssp = st.radio("Select SSP Scenario", rcpssp_scenario[rcpssp_scenario_rcp])
+        
+        rcpssp_scenario = rcpssp_scenario_rcp+'-'+rcpssp_scenario_ssp
+        raster_key = f"{ssp_scenario}_{ssp_time_period}"
+        if raster_key in raster_paths:
+            fig = display_raster_RCPSSP(raster_paths[raster_key], selected_scenario=selected_scenario, time_period=rcpssp_time_period)
+            st.pyplot(fig)
+        else:
+            st.error(f"Raster file {raster_paths[raster_key]} not found for the selected scenario and time period.")

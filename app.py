@@ -40,10 +40,6 @@ def adapt_raster(old_raster):
     
     return new_raster
 
-# Example usage:
-# old_raster = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-# new_raster = adapt_raster(old_raster)
-# print(new_raster)
 
 def transitions_calc(raster1_path, raster2_path, lc_sources, lc_target):
     """Function to outline the transition from multiple land cover classes to a target class"""
@@ -71,8 +67,8 @@ def transitions_calc(raster1_path, raster2_path, lc_sources, lc_target):
     # Ensure rasters have the same shape
     min_rows = min(raster1.shape[0], raster2.shape[0])
     min_cols = min(raster1.shape[1], raster2.shape[1])
-    raster1 = raster1[:min_rows, :min_cols]
-    raster2 = raster2[:min_rows, :min_cols]
+    raster1 = raster1[-min_rows:, -min_cols:]
+    raster2 = raster2[-min_rows:, -min_cols:]
 
     # Initialize transition map
     transition = np.zeros_like(raster1, dtype=int)
@@ -222,7 +218,9 @@ with transition_col:
     else:
         # Convert selected labels to land cover class IDs
         lc_source_ids = [list(land_cover_labels.keys())[list(land_cover_labels.values()).index(lc)] for lc in lc_sources]
+        print(lc_source_ids)
         lc_target_id = list(land_cover_labels.keys())[list(land_cover_labels.values()).index(lc_target)]
+        print(lc_target_id)
 
         # Compute transition map
         transition, map_extent, crs = transitions_calc(

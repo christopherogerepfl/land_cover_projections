@@ -99,11 +99,13 @@ def transition_viz(transition, lc_sources, lc_target, map_extent, crs):
 # Define available scenarios and time periods
 rcp_scenarios = ["RCP45", "RCP85"]
 ssp_scenarios = ["SSP1", "SSP2", "SSP3", "SSP4", "SSP5"]
-rcp_ssp_scenarios = []
+rcp_ssp_scenarios = ["SSP1-RCP2.6", "SSP2-RCP4.5", "SSP3-RPC7.0", "SSP4-RCP3.4", "SSP4-RCP6.0", "SSP5-RCP3.4", "SSP5-RCP8.5"]
 
 historical_time_periods = ["1979_1985", "1992_1997", "2004_2009", "2013_2018"]
 rcp_future_time_periods = ["2020_2045", "2045_2074", "2070_2099"]
 ssp_future_time_periods = ["2020", "2030", "2040", "2050", "2060", "2070", "2080", "2090", "2100"]
+rcpssp_future_time_periods = ["2020", "2025", "2030","2035", "2040", "2045", "2050", "2055","2060","2065",
+                               "2070", "2075","2080", "2085","2090", "2095","2100"]
 
 # Mapping between scenarios and raster paths
 raster_paths = {
@@ -172,6 +174,9 @@ raster_paths = {
     "SSP5_2090": "clipped_raster/clipped_global_SSP5_2090.tif",
     "SSP5_2100": "clipped_raster/clipped_global_SSP5_2100.tif",
 }
+
+raster_paths_rcpssp = {f"{time_period}_{scenario}": f"clipped_raster/clipped_{scenario}_gISA_{time_period}_1km.tif"
+                for time_period in rcpssp_future_time_periods for scenario in rcp_ssp_scenarios}
 
 # Load color mapping from file
 color_file_path = "Visualization/ColourPalette.txt"
@@ -365,19 +370,15 @@ with tab_rcp_ssp:
     
     with ssp_view_tab:
         
-        st.header("SSP Climate Scenarios")
-        col1_rcpssp, col2_rcpssp, col3_rcpssp = st.columns(3)
+        st.header("SSP-RCP Climate Scenarios")
+        col1_rcpssp, col2_rcpssp,  = st.columns(2)
         with col1_rcpssp:
             rcpssp_time_period = st.radio("Select Time Period:", rcpssp_future_time_periods)
         with col2_rcpssp:
-            rcpssp_scenario_rcp = st.radio("Select RCP Scenario:", rcpssp_scenarios.keys())
-        with col3_rcpssp:
-            rcpssp_scenario_ssp = st.radio("Select SSP Scenario", rcpssp_scenario[rcpssp_scenario_rcp])
-        
-        rcpssp_scenario = rcpssp_scenario_rcp+'-'+rcpssp_scenario_ssp
-        raster_key = f"{ssp_scenario}_{ssp_time_period}"
-        if raster_key in raster_paths:
-            fig = display_raster_RCPSSP(raster_paths[raster_key], selected_scenario=selected_scenario, time_period=rcpssp_time_period)
+            rcpssp_scenario= st.radio("Select SSP-RCP Scenario:", rcp_ssp_scenarios)
+        raster_key = f'{rcpssp_time_period}_{rcpssp_scenario}'
+        if raster_key in raster_paths_rcpssp:
+            fig = display_raster_SSP(raster_paths_rcpssp[raster_key], selected_scenario=rcpssp_scenario, time_period=rcpssp_time_period)
             st.pyplot(fig)
         else:
-            st.error(f"Raster file {raster_paths[raster_key]} not found for the selected scenario and time period.")
+            st.error(f"Raster file {raster_paths_rcpssp[raster_key]} not found for the selected scenario and time period.")

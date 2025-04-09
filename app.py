@@ -327,6 +327,7 @@ with tab_rcp:
             rcp_scenario = st.radio("Select RCP Scenario:", rcp_scenarios)
         if int(rcp_time_period.split('_')[-1]) < 2020:
             raster_key = f"{rcp_time_period}"
+            rcp_scenario=None
         else:
             raster_key = f"{rcp_time_period}_{rcp_scenario}"
 

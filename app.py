@@ -325,8 +325,12 @@ with tab_rcp:
             rcp_time_period = st.radio("Select Time Period:", historical_time_periods+rcp_future_time_periods)
         with col2:
             rcp_scenario = st.radio("Select RCP Scenario:", rcp_scenarios)
-        
-        raster_key = f"{rcp_time_period}_{rcp_scenario}"
+        if int(rcp_time_period.split('_')[-1]) < 2020:
+            raster_key = f"{rcp_time_period}"
+        else:
+            raster_key = f"{rcp_time_period}_{rcp_scenario}"
+
+
         if raster_key in raster_paths:
             fig = display_raster_RCP(raster_paths[raster_key], selected_scenario=rcp_scenario, time_period=rcp_time_period)
             st.pyplot(fig)

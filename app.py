@@ -3,7 +3,8 @@ import rasterio as rio
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
-from matplotlib.colors import ListedColormap
+from matplotlib.colors import ListedColormap, LinearSegmentedColormap
+import matplotlib.patches as mpatches
 import contextily as ctx
 
 def adapt_raster(old_raster):
@@ -246,7 +247,7 @@ def display_raster_SSP(raster_file, selected_scenario=None, time_period=None):
 
     # Define colors: transparent, light blue, red
     colors = [(1, 1, 1, 0),  # Transparent for other values
-            (0.678, 0.847, 0.902, 1),  # Light blue for 1 (RGB for lightblue)
+            (1, 1, 1, 0),  # Light blue for 1 (RGB for lightblue)
             (1, 0, 0, 1)]  # Red for 2 (RGB for red)
 
     # Create the custom colormap
@@ -265,6 +266,56 @@ def display_raster_SSP(raster_file, selected_scenario=None, time_period=None):
         title = f"{selected_scenario} - {time_period}"
     ax.set_title(title)
     ax.axis("off")
+
+    
+    # Add legend
+    red_patch = mpatches.Patch(color='red', label='Urban')
+    ax.legend(handles=[red_patch], loc='lower left', frameon=True)
+
+    return fig
+
+def display_raster_rcpssp(raster_file, selected_scenario=None, time_period=None):
+    print(raster_file)
+    with rio.open(raster_file) as src:
+        land_cover = src.read(1)
+        crs = src.crs
+        bounds = src.bounds
+
+    # Create a colormap from transparent -> yellow -> orange -> red
+    colors = [
+        (1, 1, 1, 0),        # 0: Fully transparent
+        (1, 1, 0, 1),        # ~33: Yellow
+        (1, 0.65, 0, 1),     # ~66: Orange
+        (1, 0, 0, 1),        # 100: Red
+    ]
+    
+    cmap = LinearSegmentedColormap.from_list("custom_colormap", colors, N=256)
+
+    # Normalize between 0 and 100
+    norm = plt.Normalize(vmin=0, vmax=100)
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    img = ax.imshow(
+        land_cover,
+        cmap=cmap,
+        norm=norm,
+        extent=[bounds.left, bounds.right, bounds.bottom, bounds.top],
+        zorder=2
+    )
+    
+    ctx.add_basemap(ax, crs=crs, attribution=1, zorder=1)
+
+    title = time_period
+    if selected_scenario:
+        title = f"{selected_scenario} - {time_period}"
+    ax.set_title(title)
+    ax.axis("off")
+
+    cbar = fig.colorbar(img, ax=ax, orientation='horizontal', fraction=0.046, pad=0.04)
+    cbar.set_label('Percentage')
+    cbar.set_ticks([0, 25, 50, 75, 100])
+    cbar.set_ticklabels(['0%', '25%', '50%', '75%', '100%'])
+
 
     return fig
 
@@ -307,12 +358,133 @@ def show_transition_analysis(scenario_type, available_rasters):
         # Explanation text
         st.write(f"Areas transitioning from **{', '.join(lc_sources)}** to **{lc_target}** are highlighted.")
 
+def show_transition_analysis_ssp(scenario_type, available_rasters):
+    """Function to show urban transition analysis interface (1 = non-urban, 2 = urban)"""
+    st.subheader(f"{scenario_type} Urban Transition Analysis")
+
+    # Filter raster options (historical + scenario)
+    filtered_rasters = []
+    filtered_rasters.extend([r for r in available_rasters if r in raster_paths.keys()])
+
+    # Raster selections
+    raster1 = st.selectbox("Select earlier raster:", filtered_rasters, index=0)
+    raster2 = st.selectbox("Select later raster:", filtered_rasters, index=1)
+
+    if raster1 == raster2:
+        st.error("Please select two different rasters.")
+    else:
+        # Load both rasters
+        with rio.open(raster_paths[raster1]) as src1:
+            data1 = src1.read(1)
+            bounds = src1.bounds
+            crs = src1.crs
+
+        with rio.open(raster_paths[raster2]) as src2:
+            data2 = src2.read(1)
+
+        # Identify transitions
+        new_urban = np.logical_and(data1 != 2 , data2 == 2)
+        old_urban = np.logical_and(data1 == 2, data2 == 2)
+        # Optionally: lost urban → other
+        # lost_urban = np.logical_and(data1 == 2, data2 == 1)
+
+        # Create a display map
+        transition_map = np.zeros_like(data1)
+        transition_map[old_urban] = 1
+        transition_map[new_urban] = 2
+        # transition_map[lost_urban] = 3  # Optional
+
+        # Colormap: 0 = transparent, 1 = old urban (red), 2 = new urban (orange)
+        cmap = ListedColormap([
+            (1, 1, 1, 0),        # 0: Transparent
+            (1, 0, 0, 1),        # 1: Old urban - Red
+            (1, 0.5, 0, 1),      # 2: New urban - Orange
+        ])
+
+        fig, ax = plt.subplots(figsize=(10, 8))
+        img = ax.imshow(
+            transition_map,
+            cmap=cmap,
+            extent=[bounds.left, bounds.right, bounds.bottom, bounds.top],
+            zorder=2
+        )
+        ctx.add_basemap(ax, crs=crs, attribution=1, zorder=1)
+        ax.set_title(f"Urban Transition: {raster1} → {raster2}")
+        ax.axis("off")
+
+        # Legend
+        red_patch = mpatches.Patch(color='red', label='Stable urban')
+        orange_patch = mpatches.Patch(color='orange', label='New urban')
+        ax.legend(handles=[red_patch, orange_patch], loc='lower left', frameon=True)
+
+        st.pyplot(fig)
+        st.write(f"**New urban areas** (orange) are where land changed from non-urban to urban between {raster1} and {raster2}.")
+        st.write("**Stable urban areas** (red) remained urban in both time periods.")
+
+def show_transition_analysis_rcpssp(scenario_type, available_rasters):
+    """Visualize urban transition based on urban percentage rasters (0-100%)"""
+    st.subheader(f"{scenario_type} Urban % Transition Analysis")
+
+    # Raster options (historical + scenario)
+    filtered_rasters = []
+    filtered_rasters.extend([r for r in available_rasters if r in raster_paths_rcpssp.keys()])
+
+    # Raster selections
+    raster1 = st.selectbox("Select earlier raster:", filtered_rasters, index=0, key=',kdo,fze')
+    raster2 = st.selectbox("Select later raster:", filtered_rasters, index=1, key=',ocdzni')
+
+    if raster1 == raster2:
+        st.error("Please select two different rasters.")
+    else:
+        # Load raster data
+        with rio.open(raster_paths_rcpssp[raster1]) as src1:
+            data1 = src1.read(1).astype(float)
+            bounds = src1.bounds
+            crs = src1.crs
+
+        with rio.open(raster_paths_rcpssp[raster2]) as src2:
+            data2 = src2.read(1).astype(float)
+
+        # Calculate change in urban %
+        delta = data2 - data1  # positive = urban increase
+
+        # Visualization setup
+        # We'll use a diverging colormap: blue (decrease), white (no change), red (increase)
+        cmap = LinearSegmentedColormap.from_list("urban_change", [
+            (0, 1, 1, 0),     # White - no change
+            (1, 1, 0, 1),        # ~33: Yellow
+            (1, 0.65, 0, 1),     # ~66: Orange
+            (1, 0, 0, 1)      # Red 
+        ])
+
+        # Center at 0, clip changes to avoid outlier stretch
+        max_abs_change = np.nanpercentile(np.abs(delta), 99)
+        norm = plt.Normalize(vmin=0, vmax=max_abs_change)
+
+        fig, ax = plt.subplots(figsize=(10, 8))
+        img = ax.imshow(delta, cmap=cmap, norm=norm,
+                        extent=[bounds.left, bounds.right, bounds.bottom, bounds.top],
+                        zorder=2)
+        ctx.add_basemap(ax, crs=crs, attribution=1, zorder=1)
+        ax.set_title(f"Urban % Change: {raster1} → {raster2}")
+        ax.axis("off")
+
+        # Colorbar
+        cbar = fig.colorbar(img, ax=ax, orientation='horizontal', fraction=0.046, pad=0.04)
+        cbar.set_label('Change in urban percentage (%)')
+        cbar.set_ticks([0, max_abs_change])
+        cbar.set_ticklabels(["0%", f"+{int(max_abs_change)}%"])
+
+        st.pyplot(fig)
+        st.write(f"**Red areas** show increased urbanization between {raster1} and {raster2}.")
+        st.write("**Blue areas** show decreased urbanization. **White areas** stayed about the same.")
+
 # Streamlit UI
 st.set_page_config(layout="wide")
 st.title("Land Cover Scenario Viewer")
 
 # Main tab selection - RCP vs SSP
-tab_rcp, tab_ssp, tab_rcp_ssp = st.tabs(["RCP Scenarios", "SSP Scenarios", "RCP-SSP Scenarios"])
+tab_rcp, tab_ssp, tab_rcp_ssp = st.tabs(["RCP Scenarios", "SSP (shared spatio-temporal pathways) Scenarios", "RCP-SSP Scenarios"])
 
 # RCP Tab
 with tab_rcp:
@@ -364,10 +536,10 @@ with tab_ssp:
         else:
             st.error(f"Raster file {raster_paths[raster_key]} not found for the selected scenario and time period.")
     
-    """with ssp_transition_tab:
+    with ssp_transition_tab:
         # Create a list of all SSP raster keys
-        ssp_rasters = [f"{period}_{scenario}" for period in ssp_future_time_periods for scenario in ssp_scenarios]
-        show_transition_analysis("SSP", ssp_rasters)"""
+        ssp_rasters = [f"{scenario}_{period}" for period in ssp_future_time_periods for scenario in ssp_scenarios]
+        show_transition_analysis_ssp("SSP", ssp_rasters)
 
 with tab_rcp_ssp:
         # Create subtabs for scenario viewing and transition analysis
@@ -383,7 +555,11 @@ with tab_rcp_ssp:
             rcpssp_scenario= st.radio("Select SSP-RCP Scenario:", rcp_ssp_scenarios)
         raster_key = f'{rcpssp_time_period}_{rcpssp_scenario}'
         if raster_key in raster_paths_rcpssp:
-            fig = display_raster_SSP(raster_paths_rcpssp[raster_key], selected_scenario=rcpssp_scenario, time_period=rcpssp_time_period)
+            fig = display_raster_rcpssp(raster_paths_rcpssp[raster_key], selected_scenario=rcpssp_scenario, time_period=rcpssp_time_period)
             st.pyplot(fig)
         else:
             st.error(f"Raster file {raster_paths_rcpssp[raster_key]} not found for the selected scenario and time period.")
+    with ssp_transition_tab:
+        # Create a list of all SSP raster keys
+        rcpssp_rasters = [f"{period}_{scenario}" for period in rcpssp_future_time_periods for scenario in rcp_ssp_scenarios]
+        show_transition_analysis_rcpssp("SSP", rcpssp_rasters)

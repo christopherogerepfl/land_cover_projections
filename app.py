@@ -312,7 +312,7 @@ def display_raster_rcpssp(raster_file, selected_scenario=None, time_period=None)
     ax.axis("off")
 
     cbar = fig.colorbar(img, ax=ax, orientation='horizontal', fraction=0.046, pad=0.04)
-    cbar.set_label('Percentage')
+    cbar.set_label('Percentage of impervious surface area')
     cbar.set_ticks([0, 25, 50, 75, 100])
     cbar.set_ticklabels(['0%', '25%', '50%', '75%', '100%'])
 
@@ -471,7 +471,7 @@ def show_transition_analysis_rcpssp(scenario_type, available_rasters):
 
         # Colorbar
         cbar = fig.colorbar(img, ax=ax, orientation='horizontal', fraction=0.046, pad=0.04)
-        cbar.set_label('Change in urban percentage (%)')
+        cbar.set_label('Change in impervious surface area (%)')
         cbar.set_ticks([0, max_abs_change])
         cbar.set_ticklabels(["0%", f"+{int(max_abs_change)}%"])
 

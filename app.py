@@ -489,6 +489,9 @@ tab_rcp, tab_ssp, tab_rcp_ssp = st.tabs(["RCP Scenarios", "SSP (shared spatio-te
 # RCP Tab
 with tab_rcp:
     # Create subtabs for scenario viewing and transition analysis
+    # add text and link for the paper
+    st.markdown("https://www.nature.com/articles/s41597-024-03055-z")
+    
     rcp_view_tab, rcp_transition_tab = st.tabs(["View Scenarios", "Transition Analysis"])
     with rcp_view_tab:
         st.header("RCP Climate Scenarios")
@@ -518,6 +521,7 @@ with tab_rcp:
 # SSP Tab
 with tab_ssp:
     # Create subtabs for scenario viewing and transition analysis
+    st.markdown("https://www.nature.com/articles/s41467-020-14386-x")
     ssp_view_tab, ssp_transition_tab = st.tabs(["View Scenarios", "Transition Analysis"])
     
     with ssp_view_tab:
@@ -543,8 +547,9 @@ with tab_ssp:
 
 with tab_rcp_ssp:
         # Create subtabs for scenario viewing and transition analysis
+    st.markdown("https://essd.copernicus.org/articles/15/3623/2023/#section5")
+
     ssp_view_tab, ssp_transition_tab = st.tabs(["View Scenarios", "Transition Analysis"])
-    
     with ssp_view_tab:
         
         st.header("SSP-RCP Climate Scenarios")

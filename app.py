@@ -493,6 +493,7 @@ def plot_viz_survey(geodf, col_name):
     geodf_1.apply(lambda x: ax[0].annotate(text=x[col_name], xy=x.geometry.centroid.coords[0], ha='center', color = "black"), axis=1)
     ctx.add_basemap(ax = ax[0], crs='epsg:2056', attribution=1)
     ax[0].set_axis_off()
+    ax[0].set_title('Absolute percentage preference in infrastructure - Lausanne and neighbors')
 
     geodf.set_index('canton')[col_name].plot(kind='bar',ax=ax[1])
     for p in ax[1].patches:
@@ -501,11 +502,38 @@ def plot_viz_survey(geodf, col_name):
                        ha='center', va='center',
                        xytext=(0, 10),
                        textcoords='offset points')
+        
 
     plt.xticks(rotation=45)
     ax[1].yaxis.set_visible(False)
+    ax[1].set_title("Absolute percentage preference in infrastructure - Vaud")
     return fig
 
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+def plot_preferred_infra(geodf, col_names):
+    # Create a new GeoDataFrame for the preferred infrastructure
+    preferred_gdf = geodf.copy()
+    preferred_gdf['preferred_infra'] = geodf[col_names].idxmax(axis=1)
+    preferred_gdf['preferred_percentage'] = geodf[col_names].max(axis=1)
+
+    fig, ax = plt.subplots(1, 1, figsize=(5, 5))
+    cmap = 'viridis'
+    norm = Normalize(vmin=0, vmax=0.6)  # 0 to 1 because values are in fraction
+    geodf_1 = preferred_gdf[preferred_gdf['canton'].isin(['Gros-de-Vaud', 'Lausanne', 'Lavaux-Oron', 'Morges', 'Ouest lausannois'])]
+    plot = geodf_1.plot(column='preferred_percentage', cmap=cmap, norm=norm, alpha=0.7, ax=ax)
+    geodf_1.apply(lambda x: ax.annotate(text=f"{x['preferred_infra']} ({x['preferred_percentage']:.2f})",
+                                        xy=x.geometry.centroid.coords[0], ha='center', color="black", fontsize=5), axis=1)
+
+    ctx.add_basemap(ax=ax, crs='epsg:2056', attribution=1)
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="3%", pad=0.1)
+    plt.colorbar(plot.get_children()[0], cax=cax)
+
+    ax.set_axis_off()
+    ax.set_title('Preferred infrastructure - Lausanne and neighbors', fontsize=8)
+    return fig
 
 # Streamlit UI  
 st.set_page_config(layout="wide")
@@ -615,9 +643,34 @@ with tab_survey:
     # --- Merge geodata with percentages ---
     merged = pd.merge(admin_borders, percentages, left_on='NOM_MIN', right_on='canton', how='right')
     merged = gpd.GeoDataFrame(merged)
-    selected_col = 'Parc de panneaux solaires'
-    selected_col = st.selectbox(label='Type of infrastructure', options = percentages.drop(columns=["canton"]).columns)
-    print(merged[selected_col])
-    fig = plot_viz_survey(merged, selected_col)
-    st.pyplot(fig)
 
+
+with tab_survey:
+    infra_file = pd.read_csv('survey/infrastructures.csv')
+    percentages = infra_file.drop(columns=['Total Canton Vaud']).set_index('Region').T.reset_index(names=['canton'])
+    cols = percentages.drop(columns=['canton']).columns
+    for col in cols:
+        percentages[col] = round(percentages[col] / 100, 3)  # convert to 0–1 scale
+
+    admin_borders = gpd.read_file('survey/MN95_CAD_TPR_LAD_MO_DISTRICT.shp')
+
+    # --- Merge geodata with percentages ---
+    merged = pd.merge(admin_borders, percentages, left_on='NOM_MIN', right_on='canton', how='right')
+    merged = gpd.GeoDataFrame(merged)
+
+    # Sub-tab for selecting multiple infrastructures
+    sub_tab_single, sub_tab_multiple = st.tabs(["Single Infrastructure", "Multiple Infrastructures"])
+    with sub_tab_single:
+        selected_col = 'Parc de panneaux solaires'
+        selected_col = st.selectbox(label='Type of infrastructure', options = percentages.drop(columns=["canton"]).columns)
+        print(merged[selected_col])
+        fig = plot_viz_survey(merged, selected_col)
+        st.pyplot(fig)
+    with sub_tab_multiple:
+        selected_cols = st.multiselect(label='Types of infrastructure', options=percentages.drop(columns=["canton"]).columns)
+
+        if selected_cols:
+            fig = plot_preferred_infra(merged, selected_cols)
+            st.pyplot(fig)
+        else:
+            st.write("Please select at least one infrastructure.")

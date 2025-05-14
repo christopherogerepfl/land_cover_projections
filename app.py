@@ -1,4 +1,5 @@
 import streamlit as st
+import geopandas as gpd
 import rasterio as rio
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,7 +7,9 @@ import matplotlib.colors as mcolors
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 import matplotlib.patches as mpatches
 import contextily as ctx
-
+import pandas as pd
+from matplotlib.colors import Normalize
+from matplotlib.cm import ScalarMappable
 def adapt_raster(old_raster):
     """
     Adapt an old raster to the new classification system.
@@ -479,12 +482,37 @@ def show_transition_analysis_rcpssp(scenario_type, available_rasters):
         st.write(f"**Red areas** show increased urbanization between {raster1} and {raster2}.")
         st.write("**Blue areas** show decreased urbanization. **White areas** stayed about the same.")
 
-# Streamlit UI
+def plot_viz_survey(geodf, col_name):
+    fig, ax = plt.subplots(1, 2, figsize=(15, 6))
+    fig.subplots_adjust(right=0.85)
+    cmap = 'viridis'
+    norm = Normalize(vmin=0, vmax=0.6)  # 0 to 1 because values are in fraction
+    geodf_1 = geodf[geodf['canton'].isin(['Gros-de-Vaud', 'Lausanne','Lavaux-Oron','Morges', 'Ouest lausannois'])]
+    geodf_1.plot(column = col_name, ax = ax[0], cmap=cmap, norm=norm, alpha=0.7)
+
+    geodf_1.apply(lambda x: ax[0].annotate(text=x[col_name], xy=x.geometry.centroid.coords[0], ha='center', color = "black"), axis=1)
+    ctx.add_basemap(ax = ax[0], crs='epsg:2056', attribution=1)
+    ax[0].set_axis_off()
+
+    geodf.set_index('canton')[col_name].plot(kind='bar',ax=ax[1])
+    for p in ax[1].patches:
+        ax[1].annotate(f"{p.get_height():.2f}",
+                       (p.get_x() + p.get_width() / 2., p.get_height()),
+                       ha='center', va='center',
+                       xytext=(0, 10),
+                       textcoords='offset points')
+
+    plt.xticks(rotation=45)
+    ax[1].yaxis.set_visible(False)
+    return fig
+
+
+# Streamlit UI  
 st.set_page_config(layout="wide")
 st.title("Land Cover Scenario Viewer")
 
 # Main tab selection - RCP vs SSP
-tab_rcp, tab_ssp, tab_rcp_ssp = st.tabs(["RCP Scenarios", "SSP (shared spatio-temporal pathways) Scenarios", "RCP-SSP Scenarios"])
+tab_rcp, tab_ssp, tab_rcp_ssp, tab_survey = st.tabs(["RCP Scenarios", "SSP (shared spatio-temporal pathways) Scenarios", "RCP-SSP Scenarios", "Survey results"])
 
 # RCP Tab
 with tab_rcp:
@@ -568,3 +596,28 @@ with tab_rcp_ssp:
         # Create a list of all SSP raster keys
         rcpssp_rasters = [f"{period}_{scenario}" for period in rcpssp_future_time_periods for scenario in rcp_ssp_scenarios]
         show_transition_analysis_rcpssp("SSP", rcpssp_rasters)
+
+with tab_survey:
+    infra_file = pd.read_csv('survey/infrastructures.csv')
+    percentages = infra_file.drop(columns=['Total Canton Vaud']).set_index('Region').T.reset_index(names=['canton'])
+    #percentages = percentages[percentages['canton'].isin(['Gros-de-Vaud', 'Lausanne','Lavaux-Oron','Morges', 'Ouest lausannois'])]
+    cols = percentages.drop(columns=['canton']).columns
+    for col in cols:
+        percentages[col] = round(percentages[col] / 100, 3)  # convert to 0–1 scale
+
+    print(percentages.max())
+
+    # Normalize canton names
+    #percentages.loc[percentages["canton"] == 'Ouest Lausannois', "canton"] = "Ouest lausannois"
+
+    admin_borders = gpd.read_file('survey/MN95_CAD_TPR_LAD_MO_DISTRICT.shp')
+
+    # --- Merge geodata with percentages ---
+    merged = pd.merge(admin_borders, percentages, left_on='NOM_MIN', right_on='canton', how='right')
+    merged = gpd.GeoDataFrame(merged)
+    selected_col = 'Parc de panneaux solaires'
+    selected_col = st.selectbox(label='Type of infrastructure', options = percentages.drop(columns=["canton"]).columns)
+    print(merged[selected_col])
+    fig = plot_viz_survey(merged, selected_col)
+    st.pyplot(fig)
+
